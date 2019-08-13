@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<title>three.js webgl - geometry - cube</title>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+		<style>
+			body {
+				margin: 0px;
+				background-color: #000000;
+				overflow: hidden;
+			}
+		</style>
+	</head>
+	<body>
+		<script src="three.js/build/three.r89.min.js"></script>
+		<script src="js/controls/OrbitControls.js"></script>
+		<script src="js/libs/dat.gui.min.js"></script>
+
+		<script>
+			"use strict";
+			var controls;
+			var light, light2, light3;
+			var camera, scene, renderer;
+			var BBbody, BBhead;
+
+			var gravity = -9.8; // 向上為正
+			var velocity = 0;
+			var velocityH = 0;
+			var heading = 0;
+			var lastTime;
+
+			var gui, params;
+			var guiMe = function() {
+			  this.Heading = heading;
+			  this.Velocity = velocity;
+			  this.addSpeed = 10;
+			  this.rotSpeed = 20;
+			  this.Stop = function() {
+			   	velocity = 0;
+			  	this.Velocity = velocity;
+			  };
+			  this.FollowMe = false;
+			};
+
+			init();
+
+			lastTime = Date.now();
+			
+			animate();
+
+			function init() {
+
+				camera = new THREE.PerspectiveCamera( 45, window.innerWidth / window.innerHeight, 10, 5000 );
+				camera.position.y = 500;
+				camera.position.z = 400;
+
+				scene = new THREE.Scene();
+				
+				// create a light
+				light = new THREE.DirectionalLight(0xffffff);
+				light.position.set(100,200,400);
+				scene.add(light);
+				light2 = new THREE.DirectionalLight(0xffffff);
+				light2.position.set(-400,200,-400);
+				scene.add(light2);
+				light3 = new THREE.DirectionalLight(0xffffff);
+				light3.position.set(100,-400,-400);
+				scene.add(light3);
+
+				// add a ground plane
+				var texture = new THREE.TextureLoader().load( 'textures/UV_Grid_Sm.jpg' );
+				var geometry = new THREE.PlaneGeometry( 1000, 1000 );
+				var material = new THREE.MeshPhongMaterial( {map: texture, side: THREE.DoubleSide} );
+				var plane = new THREE.Mesh( geometry, material );
+				plane.rotation.x = -90 * Math.PI / 180;
+				plane.position.y = 0.0;
+				scene.add( plane );
+
+				var axisHelper = new THREE.AxesHelper( 200 );
+				scene.add( axisHelper );
+
+				texture = new THREE.TextureLoader().load( 'textures/BB8.jpg' );
+				geometry = new THREE.SphereGeometry( 50, 32, 16 );
+				material = new THREE.MeshPhongMaterial( { map: texture } );
+				BBbody = new THREE.Mesh( geometry, material );
+				BBbody.rotation.y = 90 * Math.PI / 180;
+				BBbody.position.y = 50.01;
+				scene.add( BBbody );
+
+				texture = new THREE.TextureLoader().load( 'textures/BB8-Head.jpg' );
+				geometry = new THREE.SphereGeometry( 25, 32, 16 );
+				material = new THREE.MeshPhongMaterial( { map: texture } );
+				BBhead = new THREE.Mesh( geometry, material );
+				BBhead.rotation.y = -90 * Math.PI / 180;
+				BBhead.position.y = 100.01;
+				scene.add( BBhead );
+
+				renderer = new THREE.WebGLRenderer();
+
+				// set the background color to gray
+				renderer.setClearColor( 0xa0a0a0 );
+
+				renderer.setPixelRatio( window.devicePixelRatio );
+				renderer.setSize( window.innerWidth, window.innerHeight );
+				document.body.appendChild( renderer.domElement );
+
+				// let's have the mouse affect the view
+				controls = new THREE.OrbitControls( camera, renderer.domElement );
+
+				window.addEventListener( 'resize', onWindowResize, false );
+
+				// add some GUI
+				params = new guiMe();
+				gui = new dat.GUI();
+
+				gui.add(params, 'Heading').listen();
+				gui.add(params, 'Velocity').listen();
+				gui.add(params, 'addSpeed', 0, 30);
+				gui.add(params, 'rotSpeed', 0, 30);
+				gui.add(params, 'Stop');
+				gui.add(params, 'FollowMe');
+				gui.open();
+
+				window.onkeypress = function( event ) {
+			        var key = String.fromCharCode(event.keyCode);
+			        var q = new THREE.Quaternion();
+			        switch( key ) {
+			          case 'w': case 'W':
+							//BBbody.rotateOnAxis ( new THREE.Vector3( 0, 0, 1 ), params.rotSpeed * Math.PI / 180);
+							velocity += params.addSpeed;
+							params.Velocity = velocity;
+							break;
+			          case 's': case 'S':
+							velocity -= params.addSpeed;
+							params.Velocity = velocity;
+							break;
+			          case 'a': case 'A':
+			          		heading	+= params.rotSpeed;
+			          		heading = heading % 360;
+							BBbody.rotateOnWorldAxis ( new THREE.Vector3( 0, 1, 0 ), params.rotSpeed * Math.PI / 180);
+							break;
+			          case 'd': case 'D':
+			          		heading	-= params.rotSpeed;
+			          		heading = heading % 360;			     
+							BBbody.rotateOnWorldAxis ( new THREE.Vector3( 0, 1, 0 ), -params.rotSpeed * Math.PI / 180);
+							break;
+			          case ' ':
+			          		velocityH = 50;
+							break;
+			        }
+			    };
+			}
+
+			function onWindowResize() {
+				camera.aspect = window.innerWidth / window.innerHeight;
+				camera.updateProjectionMatrix();
+				renderer.setSize( window.innerWidth, window.innerHeight );
+			}
+
+			function animate() {
+				requestAnimationFrame( animate );
+
+				// Rotate the wheel
+				var deltaTime = Date.now() - lastTime;
+				lastTime = Date.now();
+				var tickV = (velocity*deltaTime/1000.0);
+				BBbody.rotateOnAxis ( new THREE.Vector3( 0, 0, 1 ), tickV * Math.PI / 180);
+				
+				// Move the body & head
+				var OldPositionX = BBbody.position.x;
+				var OldPositionZ = BBbody.position.z;
+				BBbody.position.x += tickV * Math.sin(heading * Math.PI / 180);
+				BBbody.position.z += tickV * Math.cos(heading * Math.PI / 180);
+				if(BBbody.position.x > 450 || BBbody.position.x < -450)
+					BBbody.position.x = OldPositionX;
+				else
+					BBhead.position.x = BBbody.position.x;
+
+				if(BBbody.position.z > 450 || BBbody.position.z < -450)
+					BBbody.position.z = OldPositionZ;
+				else
+					BBhead.position.z = BBbody.position.z;
+
+				velocityH += 10*gravity*deltaTime/1000.0;
+				BBbody.position.y += 10*velocityH*deltaTime/1000.0;
+				if(BBbody.position.y < 50){
+					BBbody.position.y = 50;
+					velocityH = 0;
+				}
+				BBhead.position.y = BBbody.position.y + 50;
+
+				// Camera now following the BB8
+				if(params.FollowMe){
+					camera.position.x = BBhead.position.x;
+					camera.position.y = 500;
+					camera.position.z = 400+BBhead.position.z;
+					camera.lookAt(BBhead.position);
+				}
+
+				params.Velocity = velocity;
+				params.Heading = heading;
+
+				renderer.render( scene, camera );
+				// have the mouse update the view
+				controls.update();
+
+			}
+		</script>
+	</body>
+</html>
+
+
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head><meta http-equiv="Content-Type" content="text/html; charset=utf-8" /><title>
+
+</title></head>
+<body>
+    <form method="post" action="./DownloadFile.aspx?Source=Course&amp;CourseType=2&amp;AttachmentID=318217&amp;AttachmentFileName=bb8_homework+ver.html" id="form1">
+<div class="aspNetHidden">
+<input type="hidden" name="__VIEWSTATE" id="__VIEWSTATE" value="/wEPDwUKLTEzNDM3NzkxOWRkE99b+haQV3ZBm26TDQfyZY8BZWY=" />
+</div>
+
+<div class="aspNetHidden">
+
+	<input type="hidden" name="__VIEWSTATEGENERATOR" id="__VIEWSTATEGENERATOR" value="F69017DB" />
+</div>
+    <div>
+    
+    </div>
+    </form>
+</body>
+</html>
